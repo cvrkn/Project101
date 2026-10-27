@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VectoStage</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+<div class="camera-viewport" id="viewport">
+  <div class="camera-rig" id="rig">
+    <div class="layer layer-background"></div>
+    <div class="layer layer-back-vfx"></div>
+    <div class="layer layer-actors"></div>
+    <div class="layer layer-front-vfx"></div>
+  </div>
+  <div class="layer layer-frame"></div>
+</div>
+
+<div id="debug">
+  <button id="play" aria-label="Play or pause">Play</button>
+  <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Timeline scrub">
+  <span id="clock">0.0s</span><span id="fps">-- fps</span><span id="nodes">-- nodes</span>
+</div>
+
+<script type="module">
+import { Camera } from './modules/camera.js';
+import { LipSync } from './modules/lipsync.js';
+import { Spawner } from './modules/spawner.js';
+import { Director } from './modules/timeline.js';
+
+const $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+const dir = new Director({ camera: new Camera($('viewport'), $('rig')), spawner: new Spawner($('rig')), lipsync: new LipSync() });
+await dir.load(`scenes/${q.get('scene') ?? 'sample_scene'}.json`);
+
+// ?autoplay starts immediately (audio needs a click first) · ?clean hides the HUD for recording · H toggles it
+$('debug').hidden = q.has('clean');
+const toggle = () => dir.playing ? dir.pause() : dir.play();
+$('play').onclick = toggle;
+$('scrub').oninput = e => dir.seek(e.target.value / 1000 * dir.duration);
+addEventListener('keydown', e => { if (e.key === 'h') $('debug').hidden = !$('debug').hidden; if (e.code === 'Space') { e.preventDefault(); toggle(); } });
+if (q.has('autoplay')) dir.play();
+
+let frames = 0, since = performance.now();
+requestAnimationFrame(function loop(now) {
+  dir.tick(now);
+  if (!$('debug').hidden) {
+    $('play').textContent = dir.playing ? 'Pause' : 'Play';
+    if (document.activeElement !== $('scrub')) $('scrub').value = dir.t / dir.duration * 1000;
+    $('clock').textContent = dir.t.toFixed(1) + 's';
+    frames++;
+    if (now - since > 500) {
+      $('fps').textContent = Math.round(frames * 1000 / (now - since)) + ' fps';
+      $('nodes').textContent = $('rig').getElementsByTagName('*').length + ' nodes';
+      frames = 0; since = now;
+    }
+  }
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>
